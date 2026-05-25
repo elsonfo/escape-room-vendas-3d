@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Escape Room de Vendas 3D</title>
+    <script>
+      if (window.location.protocol === "file:") {
+        window.location.replace("http://localhost:3200");
+      }
+    </script>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div id="joinScreen" class="join-screen">
+      <form id="joinForm" class="join-panel">
+        <div class="brand-line">
+          <span class="brand-mark">ER</span>
+          <div>
+            <strong>Escape Room de Vendas</strong>
+            <small>Shopping 3D multiusuario para equipes de alunos</small>
+          </div>
+        </div>
+        <label>Nome do aluno
+          <input id="playerName" maxlength="28" required placeholder="Ex.: Ana">
+        </label>
+        <label>Grupo ou sala individual
+          <input id="groupId" maxlength="32" required placeholder="Ex.: Grupo 1">
+        </label>
+        <label>Avatar
+          <select id="avatarSelect">
+            <option value="consultor">Consultor</option>
+            <option value="analista">Analista</option>
+            <option value="lider">Lider</option>
+            <option value="negociador">Negociador</option>
+          </select>
+        </label>
+        <label>Cor do avatar
+          <input id="avatarColor" type="color" value="#26b7a0">
+        </label>
+        <button id="joinBtn" type="submit">Entrar no shopping</button>
+        <p>Entre pelo menos 3 alunos com o mesmo grupo para jogar em equipe na mesma ala.</p>
+      </form>
+    </div>
+
+    <main class="game-shell">
+      <aside class="hud">
+        <div class="brand-line compact">
+          <span class="brand-mark">SV</span>
+          <div>
+            <strong>Shopping Vendas</strong>
+            <small id="groupLabel">Aguardando grupo</small>
+          </div>
+        </div>
+
+        <section class="score-box">
+          <span>Pontuacao do grupo</span>
+          <strong><b id="scoreValue">0</b>/21</strong>
+          <div class="meter"><i id="scoreMeter"></i></div>
+          <small id="statusText">Fase 1: conquiste 7 pontos para abrir a proxima porta.</small>
+        </section>
+
+        <section class="timer-box">
+          <span>Tempo restante</span>
+          <strong id="timerValue">15:00</strong>
+          <button id="resetGroupBtn">Recomecar grupo</button>
+        </section>
+
+        <section>
+          <h2>Equipe online</h2>
+          <ul id="playersList" class="players-list"></ul>
+        </section>
+
+        <section>
+          <h2>Desafios</h2>
+          <ol id="challengeList" class="challenge-list"></ol>
+        </section>
+
+        <section>
+          <h2>Ranking</h2>
+          <ol id="rankingList" class="ranking-list"></ol>
+        </section>
+      </aside>
+
+      <section class="stage">
+        <div class="topbar">
+          <div>
+            <span class="eyebrow">Escape room 3D</span>
+            <h1>Resolva as tres salas de vendas antes que as portas fechem</h1>
+          </div>
+          <div class="top-actions">
+            <button id="musicBtn" type="button">Musica</button>
+            <button id="cameraBtn" type="button">Camera</button>
+          </div>
+        </div>
+        <div id="sceneHost" class="scene-host"></div>
+        <div class="controls">
+          <button data-move="forward">W</button>
+          <button data-move="left">A</button>
+          <button data-move="back">S</button>
+          <button data-move="right">D</button>
+          <button id="interactBtn">Interagir</button>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="challengeDialog">
+      <form method="dialog" class="dialog-panel">
+        <span id="challengeLevel" class="level-pill">Leve</span>
+        <h2 id="challengeTitle">Desafio</h2>
+        <p id="challengePrompt"></p>
+        <div id="challengeOptions" class="option-grid"></div>
+        <menu>
+          <button value="cancel">Fechar</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

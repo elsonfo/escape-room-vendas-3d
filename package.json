@@ -1,0 +1,12 @@
+{
+  "name": "escape-room-vendas-3d",
+  "version": "1.0.0",
+  "description": "Escape room 3D multiusuario para treinamento de tecnicas de vendas",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
