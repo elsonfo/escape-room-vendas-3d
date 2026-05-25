@@ -3,6 +3,8 @@ let THREE;
 const PHASE_MS = 15 * 60 * 1000;
 const TOTAL_SCORE = 21;
 const PHASE_GOAL = 7;
+const STATIC_MODE = location.hostname.endsWith("github.io");
+const STATIC_STATE_KEY = "escape-room-vendas-3d-static-state";
 const challenges = [
   {
     id: "op-1",
@@ -405,6 +407,7 @@ function showToast(message) {
 }
 
 async function api(path, options = {}) {
+  if (STATIC_MODE) return staticApi(path, options);
   const response = await fetch(path, {
     ...options,
     headers: { "Content-Type": "application/json", ...(options.headers || {}) }
@@ -412,6 +415,174 @@ async function api(path, options = {}) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Falha de comunicacao.");
   return data;
+}
+
+async function staticApi(path, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
+  const body = options.body ? JSON.parse(options.body) : {};
+  const state = loadStaticState();
+
+  if (method === "POST" && path === "/api/join") {
+    const player = {
+      id: crypto.randomUUID(),
+      name: cleanText(body.name, 28) || "Aluno",
+      groupId: normalizeGroupId(body.groupId || "grupo-1"),
+      avatar: cleanText(body.avatar, 24) || "consultor",
+      color: cleanText(body.color, 16) || "#26b7a0",
+      x: 0,
+      z: 7.5,
+      rot: 0,
+      lastSeen: Date.now()
+    };
+    state.groups[player.groupId] ||= freshStaticGroup(player.groupId);
+    state.players[player.id] = player;
+    saveStaticState(state);
+    return publicStaticState(state, player.groupId, player.id);
+  }
+
+  if (method === "POST" && path === "/api/presence") {
+    const player = state.players[body.playerId];
+    if (!player) throw new Error("Jogador nao encontrado. Entre novamente.");
+    player.x = clamp(Number(body.x), -13.5, 13.5);
+    player.z = clamp(Number(body.z), -52, 8.8);
+    player.rot = clamp(Number(body.rot), -Math.PI * 2, Math.PI * 2);
+    player.lastSeen = Date.now();
+    saveStaticState(state);
+    return publicStaticState(state, player.groupId, player.id);
+  }
+
+  if (method === "POST" && path === "/api/answer") {
+    const player = state.players[body.playerId];
+    if (!player) throw new Error("Jogador nao encontrado. Entre novamente.");
+    const group = state.groups[player.groupId] ||= freshStaticGroup(player.groupId);
+    updateStaticClock(group);
+    if (group.failed) return publicStaticState(state, player.groupId, player.id, "Tempo esgotado. O grupo precisa recomecar.");
+    const challenge = challenges.find((item) => item.id === body.challengeId);
+    if (!challenge) throw new Error("Desafio invalido.");
+    if (challenge.phase !== group.phase) return publicStaticState(state, player.groupId, player.id, "Este desafio pertence a outra fase.");
+    const submitted = cleanText(body.answer, 80);
+    const correct = normalizeAnswer(submitted) === normalizeAnswer(challenge.correct);
+    if (!group.answers[challenge.id]) {
+      group.answers[challenge.id] = {
+        correct,
+        answeredBy: player.name,
+        answeredAt: new Date().toISOString(),
+        answer: submitted,
+        points: correct ? challenge.points : 0,
+        phase: challenge.phase
+      };
+      recalcStaticGroup(group);
+      saveStaticState(state);
+    }
+    return publicStaticState(state, player.groupId, player.id);
+  }
+
+  if (method === "POST" && path === "/api/reset-group") {
+    const player = state.players[body.playerId];
+    if (!player) throw new Error("Jogador nao encontrado. Entre novamente.");
+    state.groups[player.groupId] = freshStaticGroup(player.groupId);
+    saveStaticState(state);
+    return publicStaticState(state, player.groupId, player.id, "Grupo reiniciado do zero.");
+  }
+
+  if (method === "POST" && path === "/api/reset-all") {
+    localStorage.removeItem(STATIC_STATE_KEY);
+    return { ok: true };
+  }
+
+  if (method === "GET" && path.startsWith("/api/state")) {
+    const url = new URL(path, location.href);
+    const groupId = normalizeGroupId(url.searchParams.get("groupId") || "grupo-1");
+    state.groups[groupId] ||= freshStaticGroup(groupId);
+    saveStaticState(state);
+    return publicStaticState(state, groupId, url.searchParams.get("playerId") || "");
+  }
+
+  throw new Error("Rota nao encontrada no modo estatico.");
+}
+
+function loadStaticState() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STATIC_STATE_KEY) || "{}");
+    return { groups: parsed.groups || {}, players: parsed.players || {} };
+  } catch {
+    return { groups: {}, players: {} };
+  }
+}
+
+function saveStaticState(state) {
+  localStorage.setItem(STATIC_STATE_KEY, JSON.stringify(state));
+}
+
+function freshStaticGroup(groupId) {
+  return {
+    id: groupId,
+    startedAt: Date.now(),
+    phase: 1,
+    phaseStartedAt: Date.now(),
+    timeLimitMs: PHASE_MS,
+    answers: {},
+    score: 0,
+    phase1Score: 0,
+    phase2Score: 0,
+    phase3Score: 0,
+    escaped: false,
+    failed: false,
+    finishedAt: null
+  };
+}
+
+function updateStaticClock(group) {
+  const targets = { 1: 7, 2: 14, 3: 21 };
+  const elapsed = Date.now() - Number(group.phaseStartedAt || Date.now());
+  if (!group.escaped && elapsed >= PHASE_MS && Number(group.score || 0) < targets[group.phase]) {
+    group.failed = true;
+    group.finishedAt ||= new Date().toISOString();
+  }
+}
+
+function recalcStaticGroup(group) {
+  group.phase1Score = Math.min(PHASE_GOAL, Object.values(group.answers).filter((answer) => answer.phase === 1).reduce((sum, answer) => sum + Number(answer.points || 0), 0));
+  group.phase2Score = Math.min(PHASE_GOAL, Object.values(group.answers).filter((answer) => answer.phase === 2).reduce((sum, answer) => sum + Number(answer.points || 0), 0));
+  group.phase3Score = Math.min(PHASE_GOAL, Object.values(group.answers).filter((answer) => answer.phase === 3).reduce((sum, answer) => sum + Number(answer.points || 0), 0));
+  const previousPhase = group.phase;
+  group.score = Math.min(TOTAL_SCORE, group.phase1Score + group.phase2Score + group.phase3Score);
+  if (group.phase === 1 && group.phase1Score >= PHASE_GOAL) group.phase = 2;
+  if (group.phase === 2 && group.phase1Score + group.phase2Score >= PHASE_GOAL * 2) group.phase = 3;
+  if (previousPhase !== group.phase) {
+    group.phaseStartedAt = Date.now();
+    group.failed = false;
+  }
+  group.escaped = group.score >= TOTAL_SCORE;
+  if (group.escaped) group.finishedAt ||= new Date().toISOString();
+}
+
+function publicStaticState(state, groupId, activePlayerId = "", message = "") {
+  const group = state.groups[groupId] ||= freshStaticGroup(groupId);
+  updateStaticClock(group);
+  const players = Object.values(state.players)
+    .filter((player) => player.groupId === groupId && Date.now() - Number(player.lastSeen || 0) < 10000)
+    .map(({ id, name, avatar, color, x, z, rot }) => ({ id, name, avatar, color, x, z, rot }));
+  const ranking = Object.values(state.groups)
+    .map((groupItem) => ({
+      id: groupItem.id,
+      score: groupItem.score,
+      phase: groupItem.phase || 1,
+      escaped: groupItem.escaped,
+      failed: groupItem.failed,
+      seconds: Math.max(0, Math.round((Number(groupItem.finishedAt ? Date.parse(groupItem.finishedAt) : Date.now()) - groupItem.startedAt) / 1000))
+    }))
+    .sort((a, b) => b.score - a.score || a.seconds - b.seconds);
+  saveStaticState(state);
+  return { group, players, playerId: activePlayerId, ranking, message, serverTime: Date.now() };
+}
+
+function normalizeGroupId(value) {
+  return cleanText(value, 32).toLowerCase().replace(/\s+/g, "-") || "grupo-1";
+}
+
+function cleanText(value, max) {
+  return String(value || "").trim().slice(0, max);
 }
 
 async function join(event) {

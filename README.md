@@ -16,6 +16,10 @@ http://localhost:3200
 
 Use o mesmo nome de grupo em tres ou mais navegadores/computadores para formar uma equipe. Cada grupo fica isolado em seu proprio estado de jogo, com placar, timer e respostas compartilhadas.
 
+## GitHub Pages
+
+No GitHub Pages, o jogo roda em modo estatico usando o armazenamento local do navegador. Esse modo permite jogar e testar as tres fases, mas nao sincroniza equipes entre computadores diferentes. Para uso multiusuario real em sala ou laboratorio, inicie pelo servidor Node com `npm start`.
+
 ## Regras
 
 - Pontuacao maxima: 21 pontos.
